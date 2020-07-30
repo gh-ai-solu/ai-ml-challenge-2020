@@ -77,11 +77,11 @@ def clauses_to_tvs(cls):
     tvs = [remove_stopwords(tv) for tv in tvs]
     return tvs
 
-
 ### stem term-vectors ###
 
 def stem_tv(tv):
     '''stem a term vector'''
+    tv = tv.copy() # keeps original column from being overwritten
     stemmer = PorterStemmer()
     for i in range(0, len(tv)):
         tv[i] = stemmer.stem(tv[i])
@@ -104,16 +104,16 @@ def tfidf_from_tvs(tvs):
     tfidf = v.fit_transform(tvs)
     return tfidf, v
 
+### gen TF-IDF features and append to input df ###
+
 def features_from_tvs(tvs):
     '''generate TF-IDF features from Series of term-vectors'''
     tfidf, v = tfidf_from_tvs(tvs)
     df_features = pd.DataFrame(tfidf.toarray(), columns=v.get_feature_names())
-    return features
-
-### gen TF-IDF features and append to input df ###
+    return df_features
 
 def gen_tfidf_features(df, tv_col):
-    '''gens TF-IDF features from df with a column of term-vectors'''
+    '''gens TF-IDF features from df with a column of term-vectors and concats'''
     df_features = features_from_tvs(df[tv_col])
     df = pd.concat([df, df_features], axis=1)
     return df
@@ -122,7 +122,7 @@ def gen_tfidf_features(df, tv_col):
 ### diagnostic functions
 #-------------------------------------------------------------------------------
 def print_cls_with_terms(df, clause_col, tv_col, terms, n):
-    '''prints n clauses containg given a list of term-vector terms'''
+    '''prints n clauses containing any of term-vector terms'''
     count = 0
     for i in range(len(df)):
         if count==n:
