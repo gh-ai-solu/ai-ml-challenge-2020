@@ -8,10 +8,13 @@ import re
 
 import nltk
 from nltk.stem import PorterStemmer, SnowballStemmer, LancasterStemmer
-nltk.download('punkt')
-nltk.download('stopwords')
+#nltk.download('punkt')
+#nltk.download('stopwords')
+#nltk.download('words')
+#nltk.download('wordnet')
 
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import PCA
 
 #-------------------------------------------------------------------------------
 ### load data
@@ -39,17 +42,13 @@ def clean_clause(cl):
     # remove punctuation and other characters
     other_chars = ('“', '”', '’', '‘', '\\')
     chrs = string.punctuation.join(other_chars)
-    cl = (re.compile('[%s]' % re.escape(chrs)).sub('', cl))
-    cl = " ".join(cl.split()) # extra whitespace
+    cl = (re.compile('[%s]' % re.escape(chrs)).sub(' ', cl))
+    cl = ' '.join(cl.split()) # extra whitespace
     cl = cl.strip() # leading and trailing whitespace
-    cl = re.sub(r'\d+', '', cl) # remove numbers (not sure if this stays)
+    cl = re.sub(r'\d+', ' ', cl) # remove numbers (not sure if this stays)
     return cl
 
-def clean_clauses(cls):
-    cls = cls.apply(clean_clause)
-    return cls
-
-### remove stopwords ###
+### remove words ###
 
 def create_stopwords():
     '''create stopwords list for removal'''
@@ -62,20 +61,16 @@ def create_stopwords():
 
 def remove_stopwords(tv):
     '''remove stopwords from term vector'''
-    stopwords = create_stopwords()
-    newtv = []
-    for t in tv:
-        if t not in stopwords:
-            newtv.append(t)    
-    return newtv
+    stopwords = set(create_stopwords())
+    tv = tv.copy()
+    tv = [w for w in tv if w not in stopwords]    
+    return tv
 
-### convert to clauses to term-vectors ###
-
-def clauses_to_tvs(cls):
-    '''create term vector and remove stopwords'''
-    tvs = [nltk.word_tokenize(cl) for cl in cls]
-    tvs = [remove_stopwords(tv) for tv in tvs]
-    return tvs
+def remove_nonwords(tv, words):
+    '''remove non-English words'''
+    tv = tv.copy()
+    tv = [w for w in tv if w in words]
+    return tv
 
 ### stem term-vectors ###
 
@@ -83,13 +78,8 @@ def stem_tv(tv):
     '''stem a term vector'''
     tv = tv.copy() # keeps original column from being overwritten
     stemmer = PorterStemmer()
-    for i in range(0, len(tv)):
-        tv[i] = stemmer.stem(tv[i])
+    tv = [stemmer.stem(w) for w in tv]
     return tv
-
-def stem_tvs(tvs):
-    tvs = [stem_tv(tv) for tv in tvs]
-    return tvs
 
 #-------------------------------------------------------------------------------
 ### Create TF-IDF Features
@@ -104,19 +94,64 @@ def tfidf_from_tvs(tvs):
     tfidf = v.fit_transform(tvs)
     return tfidf, v
 
-### gen TF-IDF features and append to input df ###
+### gen features ###
 
-def features_from_tvs(tvs):
+def gen_tfidf_fts(tvs):
     '''generate TF-IDF features from Series of term-vectors'''
     tfidf, v = tfidf_from_tvs(tvs)
-    df_features = pd.DataFrame(tfidf.toarray(), columns=v.get_feature_names())
-    return df_features
+    df_tfidf_fts = pd.DataFrame(tfidf.toarray(), columns=v.get_feature_names())
+    return df_tfidf_fts
 
-def gen_tfidf_features(df, tv_col):
-    '''gens TF-IDF features from df with a column of term-vectors and concats'''
-    df_features = features_from_tvs(df[tv_col])
-    df = pd.concat([df, df_features], axis=1)
-    return df
+def gen_tfidf_pca_fts(tvs, ncomps):
+    '''generate TF-IDF features then reduce via PCA'''
+    tfidf, v = tfidf_from_tvs(tvs)
+    df_tfidf_fts = pd.DataFrame(tfidf.toarray(), columns=v.get_feature_names())
+
+    pca = PCA(n_components=ncomps)
+    pcs = pca.fit_transform(df_tfidf_fts)
+
+    colnames = ['pc{}'.format(i+1) for i in range(ncomps)]
+    df_tfidf_pcs_fts = pd.DataFrame(pcs,
+                              columns=colnames)
+    return df_tfidf_pcs_fts
+
+#-------------------------------------------------------------------------------
+### raw data to features table
+#-------------------------------------------------------------------------------
+def gen_features(df, n_pcs):
+    # copy to not overwrite
+    df_preprocess = df.copy(deep=True)
+    
+    # clean clauses
+    df_preprocess['clause_clean'] = (df_preprocess['clause']
+                                       .apply(clean_clause))
+
+    # remove unwanted words
+    words = set(nltk.corpus.words.words())
+    df_preprocess['clause_tv'] = (df_preprocess['clause_clean']
+                                    .apply(nltk.word_tokenize))
+    df_preprocess['clause_tv'] = (df_preprocess['clause_tv']
+                                    .apply(remove_stopwords))
+    df_preprocess['clause_tv'] = (df_preprocess['clause_tv']
+                                    .apply(remove_nonwords, 
+                                           args=(words,)))
+
+    # stem
+    df_preprocess['clause_tv_stemmed'] = (df_preprocess['clause_tv']
+                                            .apply(stem_tv))
+
+    # features
+    df_tfidf_fts = gen_tfidf_fts(df_preprocess['clause_tv_stemmed'])
+    df_tfidf_pcs_fts = gen_tfidf_pca_fts(df_preprocess['clause_tv_stemmed'], 
+                                         n_pcs)
+
+    # concat
+    df_features = pd.concat([df_preprocess, 
+                            df_tfidf_fts, 
+                            df_tfidf_pcs_fts], 
+                            axis=1)
+
+    return df_features
 
 #-------------------------------------------------------------------------------
 ### diagnostic functions
@@ -132,21 +167,3 @@ def print_cls_with_terms(df, clause_col, tv_col, terms, n):
             print('clause index - {}\n'.format(i))
             print('{}'.format(df[clause_col][i]))
             count += 1
-
-#-------------------------------------------------------------------------------
-### example code
-#-------------------------------------------------------------------------------
-#import features
-
-#df_trn = features.load_trn()
-
-#df_preprocess = df_trn.copy(deep=True)
-#df_preprocess['clause_clean'] = features.clean_clauses(df_preprocess['clause'])
-#df_preprocess['clause_tv'] = features.clauses_to_tvs(df_preprocess['clause_clean'])
-#df_preprocess['clause_tv_stemmed'] = features.stem_tvs(df_preprocess['clause_tv'])
-
-#df_features = features.gen_tfidf_features(df_preprocess, 'clause_tv_stemmed')
-
-#features.print_cls_with_terms(df_features, 
-#                              'clause', 'clause_tv_stemmed', 
-#                              ['aaa'], 10)
