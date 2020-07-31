@@ -1,4 +1,12 @@
 #-------------------------------------------------------------------------------
+### file description
+#-------------------------------------------------------------------------------
+
+### example code use ###
+#df_trn = features.load_trn()
+#df_features = features.gen_features(df_trn, 100)
+
+#-------------------------------------------------------------------------------
 ### packages
 #-------------------------------------------------------------------------------
 import os
@@ -152,6 +160,18 @@ def gen_features(df, n_pcs):
                             axis=1)
 
     return df_features
+
+def clean_features(df):
+    '''function to fix data quality issues before modeling'''
+    df['tv_len'] = (df['clause_tv_stemmed'].apply(len).value_counts())
+    df = df[df['tv_len']>5] # stemmed tv more than 5 terms
+    return
+
+def df_csv_tempfolder(df, fname):
+    fp_temp = os.path.dirname(os.getcwd()) + '\\ai-ml-challenge-2020\\temp\\'
+    fp_csv =  fp_temp + fname + '.csv'
+    df.to_csv(fp_csv)
+    return
 
 #-------------------------------------------------------------------------------
 ### diagnostic functions
