@@ -155,7 +155,7 @@ def gen_features(df, n_pcs):
 
     # concat
     df_features = pd.concat([df_preprocess, 
-                            df_tfidf_fts, 
+                            #df_tfidf_fts, 
                             df_tfidf_pcs_fts], 
                             axis=1)
 
