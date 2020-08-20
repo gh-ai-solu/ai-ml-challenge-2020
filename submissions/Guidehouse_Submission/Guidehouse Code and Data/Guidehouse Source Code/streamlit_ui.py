@@ -35,7 +35,6 @@ st.subheader('File Upload')
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def get_static_list():
     list_of_files = [] # this list is initialized once and can be used to store multiple uploaded files
-    """This list is initialized once and can be used to store the files uploaded"""
     return list_of_files
 
 def upload():
@@ -52,8 +51,24 @@ def upload():
     
     # Get list of only files within the folder path
     onlyfiles = [f for f in listdir(folder_path) if ((isfile(join(folder_path, f)) and f[-4:] == "docx") or (isfile(join(folder_path, f)) and f[-3:] == "pdf"))]
-    selected_filename = st.selectbox('Select a .docx or .pdf file', onlyfiles) # Issue with selectbox that shows first file by default, also assumes file is in working directory
-    abs_file = os.path.abspath(selected_filename) # Get absolute path for read_EULAs input
+    #selected_filename = st.selectbox('Select a .docx or .pdf file', onlyfiles) # Issue with selectbox that shows first file by default, also assumes file is in working directory
+    
+    # Initiate variables
+    selected_filename = []
+    abs_file = "0"
+    files_exist = 0
+    
+    # First, check if there are docx or pdf in the folder
+    # If so, update files_exist variable
+    if len(onlyfiles) > 0:
+        files_exist = 1
+    
+    # If there aren't docx or pdf in the folder, emit a warning 
+    if files_exist == 0:
+        st.warning("Please upload a .docx or .pdf file in the src file and refresh the webpage before proceeding")
+    else: # Otherwise, select a file
+        selected_filename = st.selectbox('Select a .docx or .pdf file', onlyfiles)
+        abs_file = os.path.abspath(selected_filename) # Get absolute path for read_EULAs input
     
     if abs_file: 
         if not abs_file in my_list: # Check to see if file is not already in the current list
@@ -64,13 +79,13 @@ def upload():
 
     if st.button("Clear file list"):
         my_list.clear()
-    #if st.checkbox("Show file list?", True):
-    #    st.write(list(my_list))
-    return my_list
+        
+    return my_list, files_exist # Return both the selected files, as well as the flag for if docx and pdf exust
 
 selected_list = upload()
-# Use read_EULAs from read_data to read and parse EULAs
-uploaded_clauses = read_data.read_EULAs(selected_list)
+read_list = selected_list[0] # List of EULAs
+
+uploaded_clauses = read_data.read_EULAs(read_list)
 st.subheader("Uploaded File Preview")
 
 """
@@ -82,12 +97,13 @@ simply select the checkbox below, which will display a table of the clauses in t
 """
 
 # For each selected file, display the content in a table format    
-for filename, lst_clauses in uploaded_clauses.items():
-    st.write(filename)
-    df_clauses = pd.DataFrame(lst_clauses,columns=['Clauses'])
+if selected_list[1] == 1: # Check if there are files to parse
+    for filename, lst_clauses in uploaded_clauses.items():
+        st.write(filename)
+        df_clauses = pd.DataFrame(lst_clauses,columns=['Clauses'])
    
 # Check the box to show EULAs in a table in the sidebar
-if st.checkbox('Check to display parsed EULAs in the sidebar'):
+if st.checkbox('Check to display parsed EULAs in the sidebar') and len(read_list)>0:
     #st.subheader('EULA files')
     st.sidebar.table(df_clauses)
   
@@ -106,13 +122,14 @@ To initiate the evaluation, click the "Predict!" button below.
 """
 
 feature_button = st.button("Predict!")
+
 def predict():
     if feature_button:
         #bar = st.progress(0)
         # Build features
         with st.spinner("Building features..."):
             features = build_features.gen_fts(uploaded_clauses)
-        st.success("Features successfuly created.")
+        st.success("Features successfully created.")
         
         with st.spinner("Modeling..."):
             # Init ensemble model
@@ -124,7 +141,7 @@ def predict():
             # Create dictionary of probability results
             lst_probability = []
             for arr in arr_probability:
-                lst_probability.append([prob[1] for prob in arr])
+                lst_probability.append([prob[0] for prob in arr])
                 # combine clauses, prediction, probability into one table
             dict_output = {}
             i = 0
@@ -132,7 +149,7 @@ def predict():
                 arr_prediction_int = np.array(arr_prediction[i]).astype(int)
                 lst_probability_round = np.array(lst_probability[i]).round(decimals=3)
                 pd_output = pd.DataFrame([value,arr_prediction_int,lst_probability_round]).T
-                pd_output.columns = ['Text','Prediction','Probability']
+                pd_output.columns = ['Clause Text','Prediction (1= Unacceptable; 0= Acceptable)','Probability the Clause is Acceptable']
                 dict_output[key] = pd_output
                 i+=1
         st.success("Prediction complete!")
@@ -140,9 +157,12 @@ def predict():
         st.subheader("View Results")
         st.markdown("""
                     Below, for each uploaded EULA file, you can view the text for each clause along
-                    with its associated prediction and probability. A prediction of '0'
-                    means that the model has understood the clause to be acceptable. Conversely,
-                    a prediction of '1' indicates that the model has understood it as unacceptable.
+                    with its associated prediction and probability. The model outputs a probability score that
+                    represents the likelihood of the clause being **acceptable**. A prediction of '0'
+                    means that the model has understood the clause to be acceptable, as the probability 
+                    of being acceptable is greater than 0.50 (or 50%). Conversely, a prediction of '1' 
+                    indicates that the model has understood it as unacceptable with a 
+                    probability of acceptable being less than than or equal to 0.50.
                     """)
 
         for key, value in dict_output.items():
