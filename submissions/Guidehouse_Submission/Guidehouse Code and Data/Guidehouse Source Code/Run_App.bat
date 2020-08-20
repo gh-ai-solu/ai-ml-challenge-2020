@@ -4,17 +4,17 @@ ECHO Setting up environment...
 :: Temporarily modify PATH variable to access Anaconda installation
 :: Add all potential path directory's, depending on user install of Anaconda
 :: Old Anaconda pathnames that could have been added to PATH during install
-SET folder1=C:\Users\echo001\AppData\Local\Continuum\anaconda3
-SET folder2=C:\Users\echo001\AppData\Local\Continuum\anaconda3\Library\mingw-w64\bin
-SET folder3=C:\Users\echo001\AppData\Local\Continuum\anaconda3\Library\user\bin
-SET folder4=C:\Users\echo001\AppData\Local\Continuum\anaconda3\Library\bin
-SET folder5=C:\Users\echo001\AppData\Local\Continuum\anaconda3\Scripts
+SET folder1=C:\Users\%username%\AppData\Local\Continuum\anaconda3
+SET folder2=C:\Users\%username%\AppData\Local\Continuum\anaconda3\Library\mingw-w64\bin
+SET folder3=C:\Users\%username%\AppData\Local\Continuum\anaconda3\Library\user\bin
+SET folder4=C:\Users\%username%\AppData\Local\Continuum\anaconda3\Library\bin
+SET folder5=C:\Users\%username%\AppData\Local\Continuum\anaconda3\Scripts
 :: New Anaconda pathnames that could have been added to PATH during install
-SET folder6=C:\Users\echo001\Anaconda3
-SET folder7=C:\Users\echo001\Anaconda3\Library\mingw-w64\bin
-SET folder8=C:\Users\echo001\Anaconda3\Library\bin
-SET folder9=C:\Users\echo001\Anaconda3\Library\usr\bin
-SET folder10=C:\Users\echo001\Anaconda3\Scripts
+SET folder6=C:\Users\%username%\Anaconda3
+SET folder7=C:\Users\%username%\Anaconda3\Library\mingw-w64\bin
+SET folder8=C:\Users\%username%\Anaconda3\Library\bin
+SET folder9=C:\Users\%username%\Anaconda3\Library\usr\bin
+SET folder10=C:\Users\%username%\Anaconda3\Scripts
 
 IF EXIST %folder1% (PATH !PATH!;%folder1%)
 IF EXIST %folder2% (PATH !PATH!;%folder2%)
