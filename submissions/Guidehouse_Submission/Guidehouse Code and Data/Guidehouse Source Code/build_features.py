@@ -44,6 +44,10 @@ def standardize_text(cl):
     cl = re.sub('[^A-Za-z0-9]+', ' ', cl)
     #remove extra spaces
     cl = re.sub('\s+', ' ', cl)
+    #remove tabs
+    cl = re.sub('\t', ' ', cl)
+    #remove linebreak
+    cl = re.sub('\n', ' ', cl)
     #remove leading/trailing whitespaces
     cl = cl.strip()
     return cl
@@ -100,9 +104,14 @@ def add_lem(cln):
 ### BERT tokens and embeddings
 #-------------------------------------------------------------------------------
 def BERT_tkns(cls, tokenizer):
-    tkns_cls = [tokenizer.encode(cl, add_special_tokens=True) for cl in cls]
+    tkns_cls = []
+    for cl in cls:
+        # print(cl)
+        tkns_cls.append(tokenizer.encode(cl, add_special_tokens=True))
+    # tkns_cls = [tokenizer.encode(cl, add_special_tokens=True) for cl in cls]
     for i in range(0, len(tkns_cls)):
-        tkns_cls[i][:512] # only keep first 512 tokens due to BERT limit
+        if len(tkns_cls[i]) > 512:
+            tkns_cls[i] = tkns_cls[i][:512] # only keep first 512 tokens due to BERT limit
         tkns_cls[i] = np.array(tkns_cls[i] + [0]*(512-len(tkns_cls[i])))
     return tkns_cls
 
@@ -125,7 +134,6 @@ def add_BERT(cln):
     for k in BERT.keys():
         BERT[k]['BERT_tkns'] = BERT_tkns(BERT[k]['cln'], tokenizer)
         BERT[k]['BERT_attn'] = BERT_attn(BERT[k]['BERT_tkns'])
-
         tkns = np.array(BERT[k]['BERT_tkns'])
         if len(BERT[k]['BERT_tkns']) > 1:
             tkns = np.squeeze(tkns)
@@ -135,7 +143,6 @@ def add_BERT(cln):
         if len(BERT[k]['BERT_attn']) > 1:
             attn = np.squeeze(attn)
         attn = torch.tensor(attn)
-
         with torch.no_grad():
             embds = model(tkns, attention_mask=attn)
 
